@@ -54,20 +54,23 @@ jobs:
               if ($r.assessment) { throw "disk $($d.number): a verdict was given without data" }
             } else { throw "disk $($d.number): unexpected status $($r.smart.status)" }
           }
+          exit 0
       - name: Silent install, registry entry, uninstall
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           Copy-Item target\release\DiskPulse.exe "$env:RUNNER_TEMP\DiskPulse-Setup.exe"
-          & "$env:RUNNER_TEMP\DiskPulse-Setup.exe" --install --silent
-          if ($LASTEXITCODE -ne 0) { throw 'install failed' }
+          # a GUI-subsystem exe: `&` does not wait for it, Start-Process -Wait does
+          $p = Start-Process "$env:RUNNER_TEMP\DiskPulse-Setup.exe" -ArgumentList '--install','--silent' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "install failed: $($p.ExitCode)" }
           $exe = Join-Path $env:LOCALAPPDATA 'Programs\DiskPulse\DiskPulse.exe'
           if (-not (Test-Path $exe)) { throw 'DiskPulse.exe was not installed' }
           $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiskPulse'
           if (-not (Test-Path $key)) { throw 'no Apps & features entry' }
           if ((Get-ItemProperty $key).DisplayVersion -ne (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value) { throw 'wrong version in Apps & features' }
-          & $exe --uninstall --silent
-          Start-Sleep -Seconds 6
+          $p = Start-Process $exe -ArgumentList '--uninstall','--silent' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall failed: $($p.ExitCode)" }
+          Start-Sleep -Seconds 8
           if (Test-Path $key) { throw 'uninstall left the registry entry' }
           if (Test-Path $exe) { throw 'uninstall left the exe' }
       - name: Background service install, run, remove
