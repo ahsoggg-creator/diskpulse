@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust stable
+        run: rustup toolchain install stable --profile minimal --component clippy,rustfmt --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Build
+        run: cargo build --release
+
+  # The runner is an elevated administrator on a real Windows install: the only place where the device layer
+  # (enumeration, SMART attempts on a virtual disk, installer) runs for real. Nothing here writes to a disk.
+  integration:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust stable
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: List disks and read S.M.A.R.T. (a virtual disk must report "unavailable", never zeros)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          .\target\release\diskpulse-cli.exe list
+          $json = .\target\release\diskpulse-cli.exe list --json | ConvertFrom-Json
+          if (-not $json -or $json.Count -lt 1) { throw 'no physical disks found' }
+          foreach ($d in $json) {
+            $out = .\target\release\diskpulse-cli.exe smart $d.number --json --lang en
+            $code = $LASTEXITCODE
+            $out
+            $r = $out | ConvertFrom-Json
+            if ($r.smart.status -eq 'ok') {
+              if ($code -ne 0) { throw "disk $($d.number): status ok but exit code $code" }
+            } elseif ($r.smart.status -eq 'unavailable') {
+              if ($code -ne 2) { throw "disk $($d.number): unavailable but exit code $code" }
+              if (-not $r.smart.reason) { throw "disk $($d.number): unavailable without a reason" }
+              if ($r.assessment) { throw "disk $($d.number): a verdict was given without data" }
+            } else { throw "disk $($d.number): unexpected status $($r.smart.status)" }
+          }
+          exit 0
+      - name: Silent install, registry entry, uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Copy-Item target\release\DiskPulse.exe "$env:RUNNER_TEMP\DiskPulse-Setup.exe"
+          # a GUI-subsystem exe: `&` does not wait for it, Start-Process -Wait does
+          $p = Start-Process "$env:RUNNER_TEMP\DiskPulse-Setup.exe" -ArgumentList '--install','--silent' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "install failed: $($p.ExitCode)" }
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\DiskPulse\DiskPulse.exe'
+          if (-not (Test-Path $exe)) { throw 'DiskPulse.exe was not installed' }
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DiskPulse'
+          if (-not (Test-Path $key)) { throw 'no Apps & features entry' }
+          if ((Get-ItemProperty $key).DisplayVersion -ne (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value) { throw 'wrong version in Apps & features' }
+          $p = Start-Process $exe -ArgumentList '--uninstall','--silent' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall failed: $($p.ExitCode)" }
+          Start-Sleep -Seconds 8
+          if (Test-Path $key) { throw 'uninstall left the registry entry' }
+          if (Test-Path $exe) { throw 'uninstall left the exe' }
