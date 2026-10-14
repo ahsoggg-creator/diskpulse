@@ -175,7 +175,11 @@ pub fn tbw_forecast(
 /// Width of the "written" counter by bus: NVMe's is 128-bit (never wraps in practice); a SATA drive's attribute 241 is
 /// a 48-bit LBA count, i.e. 2^57 bytes at 512 bytes per LBA.
 pub fn wrap_bits_for_bus(bus: &str) -> Option<u32> {
-    if bus.eq_ignore_ascii_case("nvme") { None } else { Some(57) }
+    if bus.eq_ignore_ascii_case("nvme") {
+        None
+    } else {
+        Some(57)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -522,7 +526,13 @@ mod tests {
         let now = 40 * DAY;
         let mut v = Vec::new();
         for d in 0..40u64 {
-            v.push(Sample { t: d * DAY, written: Some(d * 1000), temp_c: Some(30 + (d % 5) as i32), pct_used: Some((d / 10) as u8), ..Sample::default() });
+            v.push(Sample {
+                t: d * DAY,
+                written: Some(d * 1000),
+                temp_c: Some(30 + (d % 5) as i32),
+                pct_used: Some((d / 10) as u8),
+                ..Sample::default()
+            });
         }
         let s = summarize(&v, now, "NVMe", Some(100_000)).unwrap();
         assert_eq!((s.count, s.temp_min, s.temp_max), (40, Some(30), Some(34)));

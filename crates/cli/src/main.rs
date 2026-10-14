@@ -1,5 +1,7 @@
 //! `diskpulse-cli`: the same engine as the GUI, from a console. Read-only: nothing here writes to a disk.
 
+mod hist;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -45,6 +47,28 @@ enum Cmd {
         #[arg(long, value_name = "DIR")]
         dump_raw: Option<PathBuf>,
     },
+    /// Take one snapshot of every readable disk into the history (what the tray and the service do on a schedule).
+    Collect {
+        /// History folder (default: the service's folder when it is installed, else the user's).
+        #[arg(long, value_name = "DIR")]
+        dir: Option<PathBuf>,
+        #[arg(long, default_value_t = 70)]
+        overheat: i32,
+    },
+    /// Show the history of a disk (without a number: the disks that have history).
+    History {
+        disk: Option<u32>,
+        #[arg(long)]
+        json: bool,
+        #[arg(long, value_name = "DIR")]
+        dir: Option<PathBuf>,
+        /// Set the manufacturer's rated endurance in TB (TBW); 0 clears it. Enables the TBW forecast.
+        #[arg(long, value_name = "TB")]
+        set_tbw: Option<f64>,
+        /// With --json: how many days of samples to include.
+        #[arg(long, default_value_t = 90)]
+        days: u64,
+    },
 }
 
 #[derive(Serialize)]
@@ -73,6 +97,14 @@ fn main() -> ExitCode {
             overheat,
             dump_raw,
         } => smart(lang, disk, json, Thresholds { overheat_c: overheat }, dump_raw),
+        Cmd::Collect { dir, overheat } => hist::collect(lang, dir, overheat),
+        Cmd::History {
+            disk,
+            json,
+            dir,
+            set_tbw,
+            days,
+        } => hist::history(lang, disk, json, dir, set_tbw, days),
     }
 }
 

@@ -48,17 +48,28 @@ pub fn format_utc(unix: u64) -> String {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let m = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = yoe + era * 400 + i64::from(m <= 2);
-    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}", rem / 3600, rem % 3600 / 60, rem % 60)
+    format!(
+        "{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 /// `3 d` / `3 дн.` for a span in seconds (whole days; under a day shows hours).
 pub fn human_span(lang: Lang, secs: u64) -> String {
     let days = secs / 86_400;
-    if days == 0 { human_hours(lang, u128::from(secs / 3600)) } else { format!("{days} {}", tr(lang, "unit.days")) }
+    if days == 0 {
+        human_hours(lang, u128::from(secs / 3600))
+    } else {
+        format!("{days} {}", tr(lang, "unit.days"))
+    }
 }
 
 pub fn now_unix() -> u64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs())
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
 }
 
 #[cfg(test)]
