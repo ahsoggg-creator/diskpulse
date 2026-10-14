@@ -13,6 +13,7 @@ pub mod nvme;
 #[cfg(windows)]
 pub mod service;
 pub mod smart;
+pub mod surface;
 pub mod units;
 #[cfg(windows)]
 pub mod winapi;
