@@ -85,12 +85,12 @@ impl Default for Params {
 
 impl Params {
     pub fn validate(&self, device_size: u64) -> Result<()> {
-        if !(MIB..=8 * MIB).contains(&self.block_bytes) || self.block_bytes % SECTOR != 0 {
+        if !(MIB..=8 * MIB).contains(&self.block_bytes) || !self.block_bytes.is_multiple_of(SECTOR) {
             return Err(Error::Unsupported(
                 "block size must be 1-8 MiB and a multiple of 4096".into(),
             ));
         }
-        if self.start % SECTOR != 0 || self.start >= device_size {
+        if !self.start.is_multiple_of(SECTOR) || self.start >= device_size {
             return Err(Error::Unsupported(
                 "start offset must be sector aligned and inside the device".into(),
             ));
