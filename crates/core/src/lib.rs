@@ -4,11 +4,14 @@
 pub mod alerts;
 pub mod assess;
 pub mod ata;
+pub mod collector;
 pub mod disks;
 pub mod error;
 pub mod history;
 pub mod i18n;
 pub mod nvme;
+#[cfg(windows)]
+pub mod service;
 pub mod smart;
 pub mod units;
 #[cfg(windows)]

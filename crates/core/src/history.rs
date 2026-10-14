@@ -170,6 +170,53 @@ pub fn tbw_forecast(
     })
 }
 
+// ---- summary ----------------------------------------------------------------------------------------------------
+
+/// Width of the "written" counter by bus: NVMe's is 128-bit (never wraps in practice); a SATA drive's attribute 241 is
+/// a 48-bit LBA count, i.e. 2^57 bytes at 512 bytes per LBA.
+pub fn wrap_bits_for_bus(bus: &str) -> Option<u32> {
+    if bus.eq_ignore_ascii_case("nvme") { None } else { Some(57) }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Summary {
+    pub count: usize,
+    pub first_t: u64,
+    pub last_t: u64,
+    pub temp_min: Option<i32>,
+    pub temp_max: Option<i32>,
+    pub temp_avg: Option<f64>,
+    pub pct_used_first: Option<u8>,
+    pub pct_used_last: Option<u8>,
+    pub written_total: Option<u64>,
+    pub week: WrittenStats,
+    pub month: WrittenStats,
+    /// Only when the rated TBW is known and the last 30 days cover enough data. An estimate.
+    pub forecast: Option<Forecast>,
+}
+
+pub fn summarize(samples: &[Sample], now: u64, bus: &str, rated_tbw_bytes: Option<u64>) -> Option<Summary> {
+    let (first, last) = (samples.first()?, samples.last()?);
+    let temps: Vec<i32> = samples.iter().filter_map(|s| s.temp_c).collect();
+    let wrap = wrap_bits_for_bus(bus);
+    let month = written_in_window(samples, now, 30 * DAY, wrap);
+    let written_total = samples.iter().rev().find_map(|s| s.written);
+    Some(Summary {
+        count: samples.len(),
+        first_t: first.t,
+        last_t: last.t,
+        temp_min: temps.iter().copied().min(),
+        temp_max: temps.iter().copied().max(),
+        temp_avg: (!temps.is_empty()).then(|| temps.iter().map(|t| f64::from(*t)).sum::<f64>() / temps.len() as f64),
+        pct_used_first: samples.iter().find_map(|s| s.pct_used),
+        pct_used_last: samples.iter().rev().find_map(|s| s.pct_used),
+        written_total,
+        week: written_in_window(samples, now, 7 * DAY, wrap),
+        month,
+        forecast: written_total.and_then(|w| tbw_forecast(w, rated_tbw_bytes, month, 3)),
+    })
+}
+
 // ---- thinning ---------------------------------------------------------------------------------------------------
 
 /// Keeps every sample from the last 2 days, one per hour up to 30 days, one per day up to 5 years, nothing older.
@@ -468,6 +515,32 @@ mod tests {
         assert_eq!(store.disks(), vec![meta.clone()]);
         assert_eq!(meta.tbw_rated_bytes(), Some(150_000_000_000_000));
         assert!(store.load("missing").is_empty());
+    }
+
+    #[test]
+    fn summary_combines_windows_and_forecast() {
+        let now = 40 * DAY;
+        let mut v = Vec::new();
+        for d in 0..40u64 {
+            v.push(Sample { t: d * DAY, written: Some(d * 1000), temp_c: Some(30 + (d % 5) as i32), pct_used: Some((d / 10) as u8), ..Sample::default() });
+        }
+        let s = summarize(&v, now, "NVMe", Some(100_000)).unwrap();
+        assert_eq!((s.count, s.temp_min, s.temp_max), (40, Some(30), Some(34)));
+        assert_eq!((s.pct_used_first, s.pct_used_last), (Some(0), Some(3)));
+        assert_eq!(s.written_total, Some(39_000));
+        assert_eq!(s.week.bytes, 6000);
+        assert!(s.forecast.is_some());
+        assert!(summarize(&v, now, "NVMe", None).unwrap().forecast.is_none());
+        assert!(summarize(&[], now, "NVMe", None).is_none());
+    }
+
+    #[test]
+    fn sata_counters_wrap_at_the_48_bit_lba_boundary() {
+        assert_eq!(wrap_bits_for_bus("SATA"), Some(57));
+        assert_eq!(wrap_bits_for_bus("nvme"), None);
+        let top = (1u64 << 57) - 512 * 10;
+        let v = vec![at(DAY, top), at(2 * DAY, 512 * 5)];
+        assert_eq!(summarize(&v, 3 * DAY, "SATA", None).unwrap().month.bytes, 512 * 15);
     }
 
     #[test]
