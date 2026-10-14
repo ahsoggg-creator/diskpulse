@@ -192,6 +192,21 @@ fn known(id: u8) -> Option<&'static Known> {
 }
 
 impl AtaAttribute {
+    /// Builds an attribute and fills in its known name / vendor flag.
+    pub fn new(id: u8, flags: u16, current: u8, worst: u8, raw: u64, threshold: Option<u8>) -> AtaAttribute {
+        let k = known(id);
+        AtaAttribute {
+            id,
+            flags,
+            current,
+            worst,
+            raw: raw & 0xFFFF_FFFF_FFFF,
+            threshold,
+            name: k.map_or(String::new(), |k| k.name.to_owned()),
+            vendor_dependent: k.is_some_and(|k| k.vendor_dependent),
+        }
+    }
+
     /// Attribute is pre-failure (as opposed to old-age) according to its flags.
     pub fn prefailure(&self) -> bool {
         self.flags & 1 != 0
@@ -300,17 +315,14 @@ pub fn parse_smart(data: &[u8], thresholds: Option<&[u8]>) -> Result<AtaSmart> {
                 .find(|&to| t[to] == id)
                 .map(|to| t[to + 1])
         });
-        let k = known(id);
-        attributes.push(AtaAttribute {
+        attributes.push(AtaAttribute::new(
             id,
-            flags: u16::from_le_bytes([data[o + 1], data[o + 2]]),
-            current: data[o + 3],
-            worst: data[o + 4],
+            u16::from_le_bytes([data[o + 1], data[o + 2]]),
+            data[o + 3],
+            data[o + 4],
             raw,
             threshold,
-            name: k.map_or(String::new(), |k| k.name.to_owned()),
-            vendor_dependent: k.is_some_and(|k| k.vendor_dependent),
-        });
+        ));
     }
     if attributes.is_empty() {
         return Err(Error::Parse("SMART data page has no attributes".into()));
