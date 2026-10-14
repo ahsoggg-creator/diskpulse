@@ -59,6 +59,9 @@ pub fn format_utc(unix: u64) -> String {
 /// `3 d` / `3 дн.` for a span in seconds (whole days; under a day shows hours).
 pub fn human_span(lang: Lang, secs: u64) -> String {
     let days = secs / 86_400;
+    if days >= 730 {
+        return format!("{} {}", days / 365, tr(lang, "unit.years"));
+    }
     if days == 0 {
         human_hours(lang, u128::from(secs / 3600))
     } else {
@@ -91,6 +94,7 @@ mod tests {
         assert_eq!(format_utc(0), "1970-01-01 00:00:00");
         assert_eq!(format_utc(951_782_400 + 86_399), "2000-02-29 23:59:59");
         assert_eq!(human_span(Lang::En, 3 * 86_400 + 5), "3 d");
+        assert_eq!(human_span(Lang::En, 26_226 * 86_400), "71 y");
     }
 
     #[test]

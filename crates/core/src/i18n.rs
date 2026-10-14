@@ -547,8 +547,8 @@ pub const TABLE: &[(&str, &str, &str)] = &[
     ),
     (
         "hist.used",
-        "Percentage Used: первый → последний",
-        "Percentage Used: first \u{2192} last",
+        "Percentage Used: первый -> последний",
+        "Percentage Used: first -> last",
     ),
     ("hist.written_total", "Записано всего", "Total written"),
     ("hist.week", "Записано за 7 дней", "Written in 7 days"),
@@ -603,6 +603,108 @@ pub const TABLE: &[(&str, &str, &str)] = &[
         "The program collects the data (the service is not installed).",
     ),
     ("unit.years", "г.", "y"),
+    // ---- tray (0.2) --------------------------------------------------------------------------------------------
+    ("tray.tip", "DiskPulse — {0}", "DiskPulse \u{2014} {0}"),
+    ("tray.open", "Открыть DiskPulse", "Open DiskPulse"),
+    ("tray.collect", "Снять снимок сейчас", "Take a snapshot now"),
+    ("tray.exit", "Выход", "Exit"),
+    (
+        "update.notify_title",
+        "DiskPulse: доступно обновление",
+        "DiskPulse: an update is available",
+    ),
+    (
+        "update.notify",
+        "Вышла версия {0}. Откройте DiskPulse → Настройки → Обновления.",
+        "Version {0} is out. Open DiskPulse \u{2192} Settings \u{2192} Updates.",
+    ),
+    ("tab.history", "История", "History"),
+    (
+        "hist.save_failed",
+        "Не удалось сохранить заявленный ресурс.",
+        "Could not save the rated endurance.",
+    ),
+    (
+        "hist.collected_none",
+        "Снимок не сохранён: ни один диск не удалось прочитать (SATA и USB нужны права администратора).",
+        "No snapshot saved: no disk could be read (SATA and USB need administrator rights).",
+    ),
+    (
+        "settings.background",
+        "Фоновый сбор и уведомления",
+        "Background collection and notifications",
+    ),
+    ("settings.interval", "Интервал снимков", "Snapshot interval"),
+    (
+        "settings.notifications",
+        "Показывать уведомления Windows о проблемах",
+        "Show Windows notifications about problems",
+    ),
+    (
+        "settings.spike",
+        "Резкий скачок записи — от, ГБ за интервал",
+        "Write spike threshold, GB per interval",
+    ),
+    (
+        "settings.tray_autostart",
+        "Запускать значок в трее вместе с Windows",
+        "Start the tray icon with Windows",
+    ),
+    (
+        "settings.tray_start",
+        "Запустить значок в трее сейчас",
+        "Start the tray icon now",
+    ),
+    (
+        "settings.tray_started",
+        "Значок в трее запущен.",
+        "The tray icon was started.",
+    ),
+    (
+        "settings.tray.hint",
+        "Значок в трее показывает худший статус дисков и собирает снимки по расписанию без окна. Без прав администратора он читает только NVMe: для SATA нужна служба.",
+        "The tray icon shows the worst disk status and collects snapshots on a schedule without a window. Without administrator rights it only reads NVMe: SATA needs the service.",
+    ),
+    (
+        "settings.service",
+        "Служба DiskPulseCollector",
+        "DiskPulseCollector service",
+    ),
+    (
+        "settings.service.body",
+        "Собирает снимки в фоне без окна и без вашего входа в систему, с правами администратора (читает и SATA). Установка и удаление — один запрос UAC. Исполняемый файл копируется в «Program Files», куда обычный пользователь писать не может.",
+        "Collects snapshots in the background with no window and no logged-in user, with administrator rights (so it reads SATA too). Install and removal take one UAC prompt. The executable is copied to \"Program Files\", which a normal user cannot write to.",
+    ),
+    (
+        "settings.service.state.running",
+        "Служба установлена и работает.",
+        "The service is installed and running.",
+    ),
+    (
+        "settings.service.state.stopped",
+        "Служба установлена, но не запущена.",
+        "The service is installed but not running.",
+    ),
+    (
+        "settings.service.state.none",
+        "Служба не установлена.",
+        "The service is not installed.",
+    ),
+    (
+        "settings.service.install",
+        "Установить службу…",
+        "Install the service\u{2026}",
+    ),
+    (
+        "settings.service.remove",
+        "Удалить службу…",
+        "Remove the service\u{2026}",
+    ),
+    (
+        "settings.service.requested",
+        "Запрос UAC отправлен; состояние обновится через несколько секунд.",
+        "UAC prompt sent; the state will refresh in a few seconds.",
+    ),
     // ---- units -------------------------------------------------------------------------------------------------
     ("unit.b", "Б", "B"),
     ("unit.kb", "КБ", "KB"),

@@ -57,7 +57,11 @@ impl App {
             ui.label(RichText::new("DiskPulse").strong().size(17.0));
             ui.label(RichText::new(env!("CARGO_PKG_VERSION")).weak());
             ui.add_space(14.0);
-            for (tab, key) in [(Tab::Disks, "tab.disks"), (Tab::Settings, "tab.settings")] {
+            for (tab, key) in [
+                (Tab::Disks, "tab.disks"),
+                (Tab::History, "tab.history"),
+                (Tab::Settings, "tab.settings"),
+            ] {
                 if ui
                     .selectable_label(self.tab == tab, RichText::new(self.t(key)).size(14.5))
                     .clicked()

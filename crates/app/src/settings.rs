@@ -27,6 +27,12 @@ pub struct Settings {
     pub last_update_check: u64,
     /// Temperature (C) from which a disk is reported as "warning" (and "bad" 10 degrees above).
     pub overheat_c: i32,
+    /// Minutes between scheduled snapshots (tray and service).
+    pub collect_interval_min: u32,
+    /// Show Windows notifications for warnings.
+    pub notifications: bool,
+    /// Gigabytes written between two snapshots that count as a "sharp jump".
+    pub write_spike_gb: u32,
 }
 
 impl Default for Settings {
@@ -36,6 +42,9 @@ impl Default for Settings {
             auto_update: true,
             last_update_check: 0,
             overheat_c: 70,
+            collect_interval_min: 30,
+            notifications: true,
+            write_spike_gb: 200,
         }
     }
 }
@@ -70,6 +79,13 @@ impl Settings {
             if std::fs::write(&tmp, json).is_ok() {
                 let _ = std::fs::rename(&tmp, &f);
             }
+        }
+    }
+
+    pub fn alert_config(&self) -> diskpulse_core::alerts::AlertConfig {
+        diskpulse_core::alerts::AlertConfig {
+            overheat_c: self.overheat_c,
+            write_spike_bytes: u64::from(self.write_spike_gb) * 1_000_000_000,
         }
     }
 
