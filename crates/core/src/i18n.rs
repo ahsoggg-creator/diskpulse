@@ -490,6 +490,47 @@ pub const TABLE: &[(&str, &str, &str)] = &[
     ("unsetup.progress", "Удаление…", "Removing\u{2026}"),
     ("unsetup.done", "DiskPulse удалён", "DiskPulse was removed"),
     ("unsetup.failed", "Не удалось удалить", "Could not remove"),
+    // ---- alerts (0.2) ------------------------------------------------------------------------------------------
+    (
+        "alert.title",
+        "DiskPulse: внимание к диску",
+        "DiskPulse: a disk needs attention",
+    ),
+    (
+        "alert.overheat",
+        "{0}: температура {1} °C (порог {2} °C)",
+        "{0}: temperature {1} \u{b0}C (threshold {2} \u{b0}C)",
+    ),
+    (
+        "alert.critical_warning",
+        "{0}: критическое предупреждение контроллера — {1}",
+        "{0}: controller critical warning \u{2014} {1}",
+    ),
+    (
+        "alert.media_errors",
+        "{0}: выросло число ошибок носителя: {1} → {2}",
+        "{0}: media errors increased: {1} \u{2192} {2}",
+    ),
+    (
+        "alert.reallocated",
+        "{0}: растёт число переназначенных секторов: {1} → {2}",
+        "{0}: reallocated sectors are growing: {1} \u{2192} {2}",
+    ),
+    (
+        "alert.pending",
+        "{0}: растёт число нестабильных и неисправимых секторов: {1} → {2}",
+        "{0}: pending and uncorrectable sectors are growing: {1} \u{2192} {2}",
+    ),
+    (
+        "alert.spare",
+        "{0}: резерв ячеек упал: {1}% → {2}%",
+        "{0}: available spare dropped: {1}% \u{2192} {2}%",
+    ),
+    (
+        "alert.write_spike",
+        "{0}: за последний интервал записано {1} — резкий скачок записи",
+        "{0}: {1} written during the last interval \u{2014} a sharp jump in writes",
+    ),
     // ---- units -------------------------------------------------------------------------------------------------
     ("unit.b", "Б", "B"),
     ("unit.kb", "КБ", "KB"),
