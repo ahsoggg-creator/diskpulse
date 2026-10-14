@@ -10,7 +10,7 @@ nothing is ever written to a disk.
 
 *All screenshots use invented data (`DiskPulse.exe --demo`) — no real model names or serial numbers.*
 
-## Features (version 0.1.0)
+## Features (version 0.2.0)
 
 - **Disks.** Every physical disk (`\\.\PhysicalDriveN`): model, bus, size, HDD/SSD, firmware, volume letters.
   The serial number is masked (`****1234`); a button reveals it.
@@ -32,10 +32,29 @@ nothing is ever written to a disk.
   off; `DiskPulse.exe --update` does the same without a window).
 - Russian and English UI (switch in settings), log and crash reports, demo mode.
 - `diskpulse-cli`: `list`, `smart <disk> [--json]`.
+- **History and charts.** S.M.A.R.T. snapshots every 30 minutes (configurable) and at startup are written to JSON-lines files
+  (`%APPDATA%\DiskPulse\history`, or `%ProgramData%\DiskPulse\history` when the service is installed). No SQLite: it is a native C
+  library, and the data is a few hundred bytes per snapshot appended in order. Old data is thinned: everything for 2 days, then
+  one snapshot per hour up to 30 days, then one per day up to 5 years. The "History" tab shows charts of temperature, Percentage
+  Used and written volume; "written in 7 / 30 days" comes from counter differences (Data Units Written), handling wrap-around of
+  narrow counters and resets (drive replaced, firmware reset). For SATA the written volume is an estimate from attribute 241.
+  The **TBW forecast** is built only if you enter the drive's rated TBW and at least 3 days of writes have been collected; it is
+  labelled "estimate" and assumes the write rate stays the same.
+- **Tray.** `DiskPulse.exe --tray` (autostart in settings): an icon coloured by the worst disk status and Windows notifications
+  about overheating (configurable threshold), growth of Media Errors / reallocated / pending sectors, a drop in Available
+  Spare, a sharp jump in writes and the critical warning. The same notification for the same disk is shown at most once a day.
+  The tray also checks for updates once a day and reports a new version. Without administrator rights the tray reads NVMe only.
+- **`DiskPulseCollector` service (optional).** Collects snapshots in the background with no window and no logged-in user, with
+  administrator rights (so it reads SATA too). Install and removal take one UAC prompt from the settings. The executable is
+  copied to `%ProgramFiles%\DiskPulse` (a normal user cannot write there); the service only writes history and reads its own
+  `service.json` (values are clamped). The tray shows the notifications.
+- `diskpulse-cli`: new `collect` and `history [disk] [--json] [--set-tbw TB]`.
 
 | SATA SSD | HDD with errors | USB without SMART |
 | --- | --- | --- |
 | ![SATA](docs/screenshots/02-sata.png) | ![HDD](docs/screenshots/03-hdd.png) | ![USB](docs/screenshots/04-usb.png) |
+
+![History: charts and TBW forecast](docs/screenshots/05-history.png)
 
 ## Installation
 
@@ -63,6 +82,7 @@ own builds with a self-signed certificate, use `scripts/make_cert.ps1`, `scripts
 
 DiskPulse sends nothing anywhere except the update check on GitHub. There is no telemetry.
 
+- `%APPDATA%\DiskPulse\history` - the snapshot history (model, masked serial number, counters);
 - `%APPDATA%\DiskPulse\logs\diskpulse.log` - the log (rotated at 512 KB);
 - `%APPDATA%\DiskPulse\logs\crashes\crash-<time>.txt` - a crash report: version, panic location, backtrace, log tail.
 
@@ -81,9 +101,9 @@ powershell -ExecutionPolicy Bypass -File scripts\release.ps1   # checks, build, 
 
 Layout:
 
-- `crates/core` - NVMe/ATA parsers, transports, disk enumeration, assessment rules, localization (no UI, with tests);
+- `crates/core` - NVMe/ATA parsers, transports, disk enumeration, assessment rules, history, alerts, localization (no UI, with tests);
 - `crates/app` - egui GUI, installer, auto-update, diagnostics, demo mode;
-- `crates/cli` - `diskpulse-cli list`, `diskpulse-cli smart 0 --json`.
+- `crates/cli` - `diskpulse-cli list`, `smart 0 --json`, `collect`, `history`.
 
 The same exe is the installer when it is named `DiskPulse-Setup.exe` (or started with `--install`) and the uninstaller
 with `--uninstall`. Re-create the screenshots (invented data, nothing real is read): `DiskPulse.exe --screenshots docs\screenshots`.

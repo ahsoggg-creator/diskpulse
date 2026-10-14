@@ -74,19 +74,10 @@ impl AlertLog {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Config {
     pub thresholds: Thresholds,
     pub alerts: AlertConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            thresholds: Thresholds::default(),
-            alerts: AlertConfig::default(),
-        }
-    }
 }
 
 pub struct Recorded {
