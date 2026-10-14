@@ -4,6 +4,7 @@ mod demo;
 mod diag;
 mod history_view;
 mod installer;
+mod service;
 mod settings;
 mod theme;
 mod tray;
@@ -68,6 +69,9 @@ pub struct App {
     pub rules_open: bool,
     pub hist: history_view::HistoryState,
     pub collect_job: Option<Receiver<usize>>,
+    /// `(installed, running)` of the background service, refreshed every few seconds.
+    pub svc: (bool, bool),
+    pub svc_checked: Option<Instant>,
 }
 
 pub fn image_from_rgba(bytes: &[u8], side: usize) -> Option<egui::ColorImage> {
@@ -102,6 +106,8 @@ impl App {
             rules_open: false,
             hist: history_view::HistoryState::default(),
             collect_job: None,
+            svc: (false, false),
+            svc_checked: None,
         };
         if in_app {
             update::cleanup_old();
@@ -280,6 +286,15 @@ fn main() -> eframe::Result {
     if has("--update") {
         return run_update_headless();
     }
+    if has("--service") {
+        return match service::run_dispatcher() {
+            Ok(()) => Ok(()),
+            Err(_) => std::process::exit(1),
+        };
+    }
+    if has("--install-service") || has("--uninstall-service") {
+        return run_service_admin(has("--uninstall-service"));
+    }
     if has("--tray") {
         if let Err(e) = tray::run() {
             diag::error(format!("tray: {e}"));
@@ -323,6 +338,31 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native("DiskPulse", opts, Box::new(|cc| Ok(Box::new(App::new(cc, mode)))))
+}
+
+/// `--install-service` / `--uninstall-service` (started elevated by the settings page, or by an administrator).
+fn run_service_admin(uninstall: bool) -> eframe::Result {
+    winint::attach_parent_console();
+    let result = if uninstall {
+        service::uninstall()
+    } else {
+        service::install(&Settings::load())
+    };
+    match result {
+        Ok(()) => println!(
+            "{}",
+            if uninstall {
+                "service removed"
+            } else {
+                "service installed and started"
+            }
+        ),
+        Err(e) => {
+            eprintln!("failed: {e}");
+            std::process::exit(1);
+        }
+    }
+    Ok(())
 }
 
 /// `--install --silent` / `--uninstall --silent`: the installer without a window (scripts, CI).

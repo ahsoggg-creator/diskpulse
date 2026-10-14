@@ -234,6 +234,28 @@ mod imp {
         }
     }
 
+    pub fn autostart_enabled() -> bool {
+        let p = wide(RUN_KEY);
+        let mut h: HKEY = std::ptr::null_mut();
+        // SAFETY: `p` is NUL-terminated; `h` is a live out-pointer.
+        if unsafe { RegOpenKeyExW(HKEY_CURRENT_USER, p.as_ptr(), 0, KEY_READ, &mut h) } != ERROR_SUCCESS {
+            return false;
+        }
+        let k = Key(h);
+        let n = wide(APP);
+        // SAFETY: valid open key and NUL-terminated name; only the existence of the value is queried.
+        unsafe {
+            windows_sys::Win32::System::Registry::RegQueryValueExW(
+                k.0,
+                n.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            ) == ERROR_SUCCESS
+        }
+    }
+
     /// Runs a PowerShell snippet without a console window. The script travels base64-encoded, so paths with quotes or
     /// non-ASCII characters need no escaping beyond PowerShell's own single quotes.
     fn powershell(script: &str) -> Result<(), String> {
