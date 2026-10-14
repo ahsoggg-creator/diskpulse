@@ -60,6 +60,7 @@ impl App {
             for (tab, key) in [
                 (Tab::Disks, "tab.disks"),
                 (Tab::History, "tab.history"),
+                (Tab::Scan, "tab.scan"),
                 (Tab::Settings, "tab.settings"),
             ] {
                 if ui

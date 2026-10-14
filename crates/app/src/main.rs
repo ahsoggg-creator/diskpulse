@@ -4,6 +4,7 @@ mod demo;
 mod diag;
 mod history_view;
 mod installer;
+mod scan_view;
 mod service;
 mod settings;
 mod theme;
@@ -36,6 +37,7 @@ pub struct DiskView {
 pub enum Tab {
     Disks,
     History,
+    Scan,
     Settings,
 }
 
@@ -72,6 +74,7 @@ pub struct App {
     /// `(installed, running)` of the background service, refreshed every few seconds.
     pub svc: (bool, bool),
     pub svc_checked: Option<Instant>,
+    pub scan: scan_view::ScanState,
 }
 
 pub fn image_from_rgba(bytes: &[u8], side: usize) -> Option<egui::ColorImage> {
@@ -108,6 +111,7 @@ impl App {
             collect_job: None,
             svc: (false, false),
             svc_checked: None,
+            scan: scan_view::ScanState::default(),
         };
         if in_app {
             update::cleanup_old();
@@ -246,6 +250,9 @@ impl App {
             }
             Tab::History => {
                 egui::CentralPanel::default().show(ui, |ui| self.history_view(ui));
+            }
+            Tab::Scan => {
+                egui::CentralPanel::default().show(ui, |ui| self.scan_view(ui));
             }
             Tab::Settings => {
                 egui::CentralPanel::default().show(ui, |ui| self.settings_view(ui));
@@ -425,6 +432,7 @@ mod tests {
             include_str!("installer.rs"),
             include_str!("demo.rs"),
             include_str!("history_view.rs"),
+            include_str!("scan_view.rs"),
             include_str!("tray.rs"),
         ];
         let (mut missing, mut checked) = (Vec::new(), 0);

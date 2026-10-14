@@ -19,7 +19,7 @@ use crate::{App, DiskView, Tab};
 const SETTLE: Duration = Duration::from_millis(900);
 
 /// What the screenshot tour does, in order.
-const STEPS: &[&str] = &["nvme", "sata", "hdd", "usb", "history", "settings"];
+const STEPS: &[&str] = &["nvme", "sata", "hdd", "usb", "history", "scan", "settings"];
 
 pub struct Driver {
     pub dir: Option<PathBuf>,
@@ -205,6 +205,120 @@ pub fn history() -> Vec<(DiskMeta, Vec<Sample>)> {
     ]
 }
 
+/// An invented read-test result: a 24 GB range of the demo HDD with two slow zones and one unreadable sector pair.
+pub fn scan_done() -> crate::scan_view::Done {
+    use diskpulse_core::ntfs::{FileHit, Kind, ZoneMap};
+    use diskpulse_core::scanmap::{Outcome, Piece};
+    use diskpulse_core::surface::{BadRange, Block, MIB, Params, Report, bucket};
+    let disk = disks(Thresholds::default()).into_iter().nth(2).expect("demo hdd").info;
+    let n = 3000u64;
+    let blocks: Vec<Block> = (0..n)
+        .map(|i| {
+            let speed = 188.0 - 46.0 * (i as f64 / n as f64) + ((i * 37 % 11) as f64 - 5.0) * 0.8; // MB/s, falling towards the inner tracks
+            let mut micros = (8.0 * MIB as f64 / speed) as u64;
+            let mut error = None;
+            if (640..643).contains(&i) {
+                micros = 420_000;
+            }
+            if (2050..2052).contains(&i) {
+                micros = 910_000;
+            }
+            if i == 1340 {
+                micros = 1_850_000;
+                error = Some(23);
+            }
+            Block {
+                offset: i * 8 * MIB,
+                len: (8 * MIB) as u32,
+                micros,
+                error,
+            }
+        })
+        .collect();
+    let mut histogram = [0u64; 11];
+    for b in &blocks {
+        histogram[bucket(b.micros as f64 / 1000.0)] += 1;
+    }
+    let bad_start = 1340 * 8 * MIB + 3 * 4096;
+    let report = Report {
+        params: Params {
+            block_bytes: 8 * MIB,
+            len: n * 8 * MIB,
+            ..Params::default()
+        },
+        device_size: disk.size_bytes,
+        bytes_read: (n - 1) * 8 * MIB,
+        micros_total: blocks.iter().map(|b| b.micros).sum(),
+        blocks,
+        bad: vec![BadRange {
+            start: bad_start,
+            end: bad_start + 8192,
+            error: 23,
+        }],
+        histogram,
+        cancelled: false,
+        too_many_errors: false,
+    };
+    let file = |path: &str, attr: &str, bytes: u64| FileHit {
+        path: path.into(),
+        kind: Kind::File,
+        record: 4000,
+        attr: attr.into(),
+        bytes,
+    };
+    let mapped = |files: Vec<FileHit>, free: u64| Outcome::Mapped {
+        volume: "E:".into(),
+        zone: ZoneMap {
+            total_bytes: 0,
+            free_bytes: free,
+            other_allocated_bytes: 0,
+            files,
+        },
+    };
+    let zones = report.zones();
+    let zone_pieces = vec![
+        Piece {
+            start: zones[0].start,
+            end: zones[0].end,
+            outcome: mapped(
+                vec![
+                    file("\\\\Video\\\\holiday-2023.mkv", "data", 20 * MIB),
+                    file("\\\\Video\\\\clip-03.mp4", "data", 4 * MIB),
+                ],
+                0,
+            ),
+        },
+        Piece {
+            start: zones[1].start,
+            end: zones[1].end,
+            outcome: mapped(vec![file("\\\\Downloads\\\\setup-demo.iso", "data", 8 * MIB)], 0),
+        },
+        Piece {
+            start: zones[2].start,
+            end: zones[2].end,
+            outcome: mapped(
+                vec![
+                    file("\\\\Backup\\\\photos-archive.zip", "data", 8 * MIB),
+                    file("\\\\$LogFile", "data", 4 * MIB),
+                ],
+                4 * MIB,
+            ),
+        },
+    ];
+    let bad_pieces = vec![Piece {
+        start: bad_start,
+        end: bad_start + 8192,
+        outcome: mapped(vec![file("\\\\Downloads\\\\setup-demo.iso", "data", 8192)], 0),
+    }];
+    crate::scan_view::Done {
+        disk,
+        report,
+        zone_pieces,
+        bad_pieces,
+        mapped: true,
+    }
+}
+
 impl App {
     fn demo_prepare(&mut self, ctx: &egui::Context, step: &str) {
         self.tab = Tab::Disks;
@@ -218,6 +332,11 @@ impl App {
                 self.tab = Tab::History;
                 self.hist.key = None;
                 self.hist.loaded = None;
+            }
+            "scan" => {
+                self.tab = Tab::Scan;
+                self.scan.disk = Some(2);
+                self.scan.done = Some(scan_done());
             }
             "settings" => self.tab = Tab::Settings,
             _ => {}
