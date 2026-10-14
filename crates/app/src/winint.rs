@@ -359,10 +359,23 @@ mod imp {
             let _ = std::fs::remove_dir_all(d);
         }
         if let Some(dir) = install_dir() {
-            // The running exe cannot delete itself: a detached cmd waits a moment and removes the folder.
-            let cmd = format!("ping 127.0.0.1 -n 3 >nul & rmdir /s /q \"{}\"", dir.display());
-            let _ = std::process::Command::new("cmd")
-                .args(["/C", &cmd])
+            // The running exe cannot delete itself: a hidden PowerShell retries for ~20 s until this process has exited.
+            let d = ps_quote(&dir.to_string_lossy());
+            let script = format!(
+                "for ($i = 0; $i -lt 20; $i++) {{ Remove-Item -LiteralPath {d} -Recurse -Force -ErrorAction SilentlyContinue;                  if (-not (Test-Path -LiteralPath {d})) {{ break }}; Start-Sleep -Seconds 1 }}"
+            );
+            let utf16: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+            let _ = std::process::Command::new("powershell.exe")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-WindowStyle",
+                    "Hidden",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-EncodedCommand",
+                    &base64(&utf16),
+                ])
                 .creation_flags(CREATE_NO_WINDOW)
                 .spawn();
         }
