@@ -54,6 +54,7 @@ jobs:
               if ($r.assessment) { throw "disk $($d.number): a verdict was given without data" }
             } else { throw "disk $($d.number): unexpected status $($r.smart.status)" }
           }
+          exit 0
       - name: Silent install, registry entry, uninstall
         shell: pwsh
         run: |
