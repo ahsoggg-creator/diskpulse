@@ -1,6 +1,7 @@
 //! `diskpulse-cli`: the same engine as the GUI, from a console. Read-only: nothing here writes to a disk.
 
 mod hist;
+mod scan;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -55,6 +56,34 @@ enum Cmd {
         #[arg(long, default_value_t = 70)]
         overheat: i32,
     },
+    /// Read-only surface test of a disk (needs administrator rights): timed sequential reads, slow zones, unreadable
+    /// blocks and the files that own them. Nothing is ever written.
+    Scan {
+        disk: u32,
+        /// Block size in MiB (1-8).
+        #[arg(long, default_value_t = 4)]
+        block_mib: u64,
+        /// Start of the tested range, in GB.
+        #[arg(long, default_value_t = 0.0)]
+        start_gb: f64,
+        /// Length of the tested range in GB (0 = to the end).
+        #[arg(long, default_value_t = 0.0)]
+        len_gb: f64,
+        /// A block slower than this is "slow".
+        #[arg(long, default_value_t = 150.0)]
+        slow_ms: f64,
+        /// Do not look up files for the zones.
+        #[arg(long)]
+        no_map: bool,
+        #[arg(long)]
+        json: bool,
+        /// Save a CSV report.
+        #[arg(long, value_name = "FILE")]
+        csv: Option<PathBuf>,
+        /// Save an HTML report.
+        #[arg(long, value_name = "FILE")]
+        html: Option<PathBuf>,
+    },
     /// Show the history of a disk (without a number: the disks that have history).
     History {
         disk: Option<u32>,
@@ -97,6 +126,30 @@ fn main() -> ExitCode {
             overheat,
             dump_raw,
         } => smart(lang, disk, json, Thresholds { overheat_c: overheat }, dump_raw),
+        Cmd::Scan {
+            disk,
+            block_mib,
+            start_gb,
+            len_gb,
+            slow_ms,
+            no_map,
+            json,
+            csv,
+            html,
+        } => scan::run(
+            lang,
+            scan::Args {
+                disk,
+                block_mib,
+                start_gb,
+                len_gb,
+                slow_ms,
+                no_map,
+                json,
+                csv,
+                html,
+            },
+        ),
         Cmd::Collect { dir, overheat } => hist::collect(lang, dir, overheat),
         Cmd::History {
             disk,

@@ -706,6 +706,11 @@ pub const TABLE: &[(&str, &str, &str)] = &[
         "UAC prompt sent; the state will refresh in a few seconds.",
     ),
     // ---- surface scan and report (0.3) -------------------------------------------------------------------------
+    (
+        "scan.needs_admin_cli",
+        "Запустите консоль от имени администратора: для чтения физического диска нужны права администратора.",
+        "Run the console as administrator: reading a physical disk needs administrator rights.",
+    ),
     ("scan.title", "Отчёт о тесте чтения", "Surface read test report"),
     ("scan.generated", "Создан {0} (UTC)", "Created {0} (UTC)"),
     (
