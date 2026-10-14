@@ -11,6 +11,8 @@ pub mod history;
 pub mod i18n;
 pub mod ntfs;
 pub mod nvme;
+pub mod report;
+pub mod scanmap;
 #[cfg(windows)]
 pub mod service;
 pub mod smart;
