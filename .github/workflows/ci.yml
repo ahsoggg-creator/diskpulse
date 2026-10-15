@@ -101,3 +101,18 @@ jobs:
           $log = Get-Content (Join-Path $env:APPDATA 'DiskPulse\logs\diskpulse.log') -Raw
           Stop-Process $p -Force
           if ($log -notmatch 'tray: collected') { throw "the tray did not collect: $log" }
+      - name: Read-only surface scan with file attribution (first 200 MB of the C volume)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $part = Get-Partition -DriveLetter C
+          $startGb = [math]::Floor($part.Offset / 4096) * 4096 / 1e9
+          $raw = .\target\release\diskpulse-cli.exe scan $part.DiskNumber --start-gb $startGb --len-gb 0.2 --slow-ms 0 --block-mib 1 --json
+          if ($LASTEXITCODE -ne 0) { throw "scan exit code $LASTEXITCODE" }
+          $r = $raw | ConvertFrom-Json
+          if ($r.bytes_read -lt 150e6) { throw "only $($r.bytes_read) bytes were read" }
+          if ($r.unreadable.Count -ne 0) { throw 'unreadable blocks on a healthy runner disk' }
+          $files = @($r.slow_zones | ForEach-Object { $_.pieces } | ForEach-Object { $_.files } | Where-Object { $_ })
+          Write-Host "files attributed to the zone: $($files.Count); first: $(($files | Select-Object -First 5 | ForEach-Object { $_.path }) -join ', ')"
+          if ($files.Count -lt 1) { throw 'no file was attributed to any cluster in 200 MB of the C: volume' }
+          if (-not ($files | Where-Object { $_.path -like '\*' })) { throw 'attributed paths do not look like paths' }

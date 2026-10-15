@@ -154,28 +154,3 @@ impl Device {
         }
     }
 }
-
-/// Heap buffer aligned to 4096 bytes (unbuffered I/O and SCSI pass-through need sector-aligned memory).
-pub struct AlignedBuf {
-    raw: Vec<u8>,
-    start: usize,
-    len: usize,
-}
-
-impl AlignedBuf {
-    pub const ALIGN: usize = 4096;
-
-    pub fn new(len: usize) -> AlignedBuf {
-        let raw = vec![0u8; len + Self::ALIGN];
-        let start = raw.as_ptr().align_offset(Self::ALIGN);
-        AlignedBuf { raw, start, len }
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        &self.raw[self.start..self.start + self.len]
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.raw[self.start..self.start + self.len]
-    }
-}

@@ -10,7 +10,7 @@ nothing is ever written to a disk.
 
 *All screenshots use invented data (`DiskPulse.exe --demo`) — no real model names or serial numbers.*
 
-## Features (version 0.2.0)
+## Features (version 0.3.0)
 
 - **Disks.** Every physical disk (`\\.\PhysicalDriveN`): model, bus, size, HDD/SSD, firmware, volume letters.
   The serial number is masked (`****1234`); a button reveals it.
@@ -49,12 +49,26 @@ nothing is ever written to a disk.
   copied to `%ProgramFiles%\DiskPulse` (a normal user cannot write there); the service only writes history and reads its own
   `service.json` (values are clamped). The tray shows the notifications.
 - `diskpulse-cli`: new `collect` and `history [disk] [--json] [--set-tbw TB]`.
+- **Read test (read only).** The physical disk is opened with `GENERIC_READ` and `FILE_FLAG_NO_BUFFERING`; the test module has
+  no write operation at all (a unit test reads the module's source to make sure). Sequential 1-8 MiB blocks, the time of every
+  block, a speed chart, a latency histogram (11 buckets, "< 1 ms" to ">= 1 s"), "slow zones" - adjacent blocks slower than a
+  threshold (150 ms by default, configurable), cancel at any moment. A block that cannot be read is re-read in 4 KiB pieces to find
+  the exact unreadable sectors; the test stops after 2000 such ranges. Needs administrator rights. The result depends on the
+  disk, its cache and the load; on an SSD a block address is not a physical cell.
+- **Which files lie in the slow zones.** Disk offset -> volume clusters (the partition offset is subtracted) -> the cluster owner
+  from `$MFT` (data runs, extension records; deleted files are ignored) and `$Bitmap` for free space. For every zone: files and
+  folders with paths, NTFS system files, free space, "allocated, owner not found". NTFS only, and only volumes made of a single
+  disk extent; for anything else the reason is written. Unreadable blocks get their own list with files.
+- Report export to CSV and HTML (everything coming from the disk is escaped); `diskpulse-cli scan <disk> [--csv file]
+  [--html file] [--json] [--block-mib 4] [--start-gb N] [--len-gb N] [--slow-ms 150]`.
 
 | SATA SSD | HDD with errors | USB without SMART |
 | --- | --- | --- |
 | ![SATA](docs/screenshots/02-sata.png) | ![HDD](docs/screenshots/03-hdd.png) | ![USB](docs/screenshots/04-usb.png) |
 
 ![History: charts and TBW forecast](docs/screenshots/05-history.png)
+
+![Read test: speed, zones and files](docs/screenshots/06-scan.png)
 
 ## Installation
 
@@ -75,8 +89,15 @@ own builds with a self-signed certificate, use `scripts/make_cert.ps1`, `scripts
 - USB bridges often block SMART; attribute values are interpreted differently by different vendors (marked "vendor
   dependent"); an LBA on an SSD is not a physical cell.
 - Some assessment rules are heuristics (and labelled so); they are not a substitute for backups.
+- No speed figures are given in the README: see [docs/BENCHMARKS.md](docs/BENCHMARKS.md) - only measured numbers and the method.
 - Verified on real NVMe drives (see `crates/core/tests/fixtures`). The SATA and USB paths follow the specifications and
   are covered by byte-sample tests; how they behave on a particular drive depends on its driver and adapter.
+
+## The read test cannot write
+
+The test opens the physical disk with `Device::open_read_only_unbuffered` (`GENERIC_READ`, no `GENERIC_WRITE`), the only
+operation of the block source is `read_at`, and `surface.rs` contains neither `WriteFile`, `DeviceIoControl` nor `GENERIC_WRITE`:
+the unit test `this_module_cannot_write` checks that. To look up files, a volume is opened the same way, read-only.
 
 ## Diagnostics and privacy
 
@@ -101,9 +122,9 @@ powershell -ExecutionPolicy Bypass -File scripts\release.ps1   # checks, build, 
 
 Layout:
 
-- `crates/core` - NVMe/ATA parsers, transports, disk enumeration, assessment rules, history, alerts, localization (no UI, with tests);
+- `crates/core` - NVMe/ATA parsers, transports, disk enumeration, assessment rules, history, alerts, read test, NTFS parsing, reports, localization (no UI, with tests);
 - `crates/app` - egui GUI, installer, auto-update, diagnostics, demo mode;
-- `crates/cli` - `diskpulse-cli list`, `smart 0 --json`, `collect`, `history`.
+- `crates/cli` - `diskpulse-cli list`, `smart 0 --json`, `collect`, `history`, `scan`.
 
 The same exe is the installer when it is named `DiskPulse-Setup.exe` (or started with `--install`) and the uninstaller
 with `--uninstall`. Re-create the screenshots (invented data, nothing real is read): `DiskPulse.exe --screenshots docs\screenshots`.
