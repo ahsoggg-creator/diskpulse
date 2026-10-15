@@ -2,9 +2,12 @@
 
 mod demo;
 mod diag;
+mod history_view;
 mod installer;
+mod service;
 mod settings;
 mod theme;
+mod tray;
 mod update;
 mod views;
 mod winint;
@@ -32,6 +35,7 @@ pub struct DiskView {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Tab {
     Disks,
+    History,
     Settings,
 }
 
@@ -63,6 +67,11 @@ pub struct App {
     pub demo: Option<demo::Driver>,
     pub crash_notice: Option<PathBuf>,
     pub rules_open: bool,
+    pub hist: history_view::HistoryState,
+    pub collect_job: Option<Receiver<usize>>,
+    /// `(installed, running)` of the background service, refreshed every few seconds.
+    pub svc: (bool, bool),
+    pub svc_checked: Option<Instant>,
 }
 
 pub fn image_from_rgba(bytes: &[u8], side: usize) -> Option<egui::ColorImage> {
@@ -95,6 +104,10 @@ impl App {
                 diag::take_unseen_crash()
             },
             rules_open: false,
+            hist: history_view::HistoryState::default(),
+            collect_job: None,
+            svc: (false, false),
+            svc_checked: None,
         };
         if in_app {
             update::cleanup_old();
@@ -217,6 +230,7 @@ impl App {
     fn app_ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
         self.poll_job();
+        self.poll_collect();
         self.demo_step(&ctx);
         self.toasts.retain(|t| t.born.elapsed() < Duration::from_secs(6));
         egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui));
@@ -229,6 +243,9 @@ impl App {
                     .min_size(240.0)
                     .show(ui, |ui| self.disk_list(ui));
                 egui::CentralPanel::default().show(ui, |ui| self.disk_detail(ui));
+            }
+            Tab::History => {
+                egui::CentralPanel::default().show(ui, |ui| self.history_view(ui));
             }
             Tab::Settings => {
                 egui::CentralPanel::default().show(ui, |ui| self.settings_view(ui));
@@ -269,6 +286,22 @@ fn main() -> eframe::Result {
     if has("--update") {
         return run_update_headless();
     }
+    if has("--service") {
+        return match service::run_dispatcher() {
+            Ok(()) => Ok(()),
+            Err(_) => std::process::exit(1),
+        };
+    }
+    if has("--install-service") || has("--uninstall-service") {
+        return run_service_admin(has("--uninstall-service"));
+    }
+    if has("--tray") {
+        if let Err(e) = tray::run() {
+            diag::error(format!("tray: {e}"));
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
     if has("--silent") && (has("--uninstall") || winint::is_setup_launch()) {
         return run_silent_setup(has("--uninstall"));
     }
@@ -305,6 +338,31 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native("DiskPulse", opts, Box::new(|cc| Ok(Box::new(App::new(cc, mode)))))
+}
+
+/// `--install-service` / `--uninstall-service` (started elevated by the settings page, or by an administrator).
+fn run_service_admin(uninstall: bool) -> eframe::Result {
+    winint::attach_parent_console();
+    let result = if uninstall {
+        service::uninstall()
+    } else {
+        service::install(&Settings::load())
+    };
+    match result {
+        Ok(()) => println!(
+            "{}",
+            if uninstall {
+                "service removed"
+            } else {
+                "service installed and started"
+            }
+        ),
+        Err(e) => {
+            eprintln!("failed: {e}");
+            std::process::exit(1);
+        }
+    }
+    Ok(())
 }
 
 /// `--install --silent` / `--uninstall --silent`: the installer without a window (scripts, CI).
@@ -366,6 +424,8 @@ mod tests {
             include_str!("main.rs"),
             include_str!("installer.rs"),
             include_str!("demo.rs"),
+            include_str!("history_view.rs"),
+            include_str!("tray.rs"),
         ];
         let (mut missing, mut checked) = (Vec::new(), 0);
         for src in sources {

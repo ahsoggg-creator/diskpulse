@@ -11,6 +11,7 @@ serde_json = "1.0.154"
 thiserror = "2.0.21"
 
 [target."cfg(windows)".dependencies]
+windows-service = "0.8.1"
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_Security", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_Threading", "Win32_Storage_IscsiDisc", "Win32_System_Diagnostics_Debug"] }
 
 [dev-dependencies]

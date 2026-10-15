@@ -57,7 +57,11 @@ impl App {
             ui.label(RichText::new("DiskPulse").strong().size(17.0));
             ui.label(RichText::new(env!("CARGO_PKG_VERSION")).weak());
             ui.add_space(14.0);
-            for (tab, key) in [(Tab::Disks, "tab.disks"), (Tab::Settings, "tab.settings")] {
+            for (tab, key) in [
+                (Tab::Disks, "tab.disks"),
+                (Tab::History, "tab.history"),
+                (Tab::Settings, "tab.settings"),
+            ] {
                 if ui
                     .selectable_label(self.tab == tab, RichText::new(self.t(key)).size(14.5))
                     .clicked()
@@ -601,6 +605,8 @@ impl App {
                 });
             });
             ui.add_space(8.0);
+            self.background_card(ui, &ctx, &mut changed);
+            ui.add_space(8.0);
             theme::card(ui).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.label(RichText::new(self.t("settings.privacy")).strong());
@@ -633,6 +639,94 @@ impl App {
             });
             if changed {
                 self.settings.save();
+            }
+        });
+    }
+}
+
+impl App {
+    fn refresh_service_state(&mut self) {
+        if self
+            .svc_checked
+            .is_none_or(|t| t.elapsed() > std::time::Duration::from_secs(3))
+        {
+            self.svc = if crate::settings::is_demo() {
+                (false, false)
+            } else {
+                (
+                    diskpulse_core::service::is_installed(),
+                    diskpulse_core::service::is_running(),
+                )
+            };
+            self.svc_checked = Some(std::time::Instant::now());
+        }
+    }
+
+    /// Snapshot schedule, notifications, tray icon and the optional background service.
+    fn background_card(&mut self, ui: &mut Ui, ctx: &egui::Context, changed: &mut bool) {
+        self.refresh_service_state();
+        ctx.request_repaint_after(std::time::Duration::from_secs(3));
+        theme::card(ui).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(self.t("settings.background")).strong());
+            let min_suffix = format!(" {}", self.t("unit.min"));
+            ui.horizontal(|ui| {
+                ui.label(self.t("settings.interval"));
+                *changed |= ui
+                    .add(egui::Slider::new(&mut self.settings.collect_interval_min, 5..=240).suffix(min_suffix))
+                    .changed();
+            });
+            let notify_label = self.t("settings.notifications");
+            *changed |= ui.checkbox(&mut self.settings.notifications, notify_label).changed();
+            ui.horizontal(|ui| {
+                ui.label(self.t("settings.spike"));
+                *changed |= ui
+                    .add(egui::DragValue::new(&mut self.settings.write_spike_gb).range(1..=100_000))
+                    .changed();
+            });
+            ui.add_space(4.0);
+            ui.label(RichText::new(self.t("settings.tray.hint")).small().weak());
+            #[cfg(windows)]
+            {
+                let mut auto = winint::autostart_enabled();
+                let label = self.t("settings.tray_autostart");
+                if ui.checkbox(&mut auto, label).changed() && !crate::settings::is_demo() {
+                    let exe = winint::installed_exe()
+                        .filter(|e| e.exists())
+                        .or_else(|| std::env::current_exe().ok());
+                    if let Some(exe) = exe {
+                        let _ = winint::set_autostart(auto, &exe);
+                    }
+                }
+                if ui.button(self.t("settings.tray_start")).clicked() && !crate::settings::is_demo() {
+                    let _ = winint::relaunch_normal("--tray");
+                    self.toast(self.t("settings.tray_started"));
+                }
+            }
+            ui.add_space(8.0);
+            ui.label(RichText::new(self.t("settings.service")).strong());
+            ui.label(RichText::new(self.t("settings.service.body")).small().weak());
+            let (installed, running) = self.svc;
+            let state_key = match (installed, running) {
+                (true, true) => "settings.service.state.running",
+                (true, false) => "settings.service.state.stopped",
+                _ => "settings.service.state.none",
+            };
+            ui.label(self.t(state_key));
+            if !crate::settings::is_demo() {
+                let (arg, key) = if installed {
+                    ("--uninstall-service", "settings.service.remove")
+                } else {
+                    ("--install-service", "settings.service.install")
+                };
+                if ui.button(self.t(key)).clicked() {
+                    self.settings.save();
+                    match winint::relaunch_elevated(arg) {
+                        Ok(()) => self.toast(self.t("settings.service.requested")),
+                        Err(_) => self.toast(self.t("admin.failed")),
+                    }
+                    self.svc_checked = None;
+                }
             }
         });
     }

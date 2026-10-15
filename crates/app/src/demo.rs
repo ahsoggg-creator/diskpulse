@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use diskpulse_core::assess::{self, Thresholds};
 use diskpulse_core::ata::{AtaAttribute, AtaSmart};
 use diskpulse_core::disks::{BusType, DiskInfo};
+use diskpulse_core::history::{DiskMeta, Sample};
 use diskpulse_core::nvme::NvmeHealth;
 use diskpulse_core::smart::{SmartData, SmartReport, UnavailableReason};
 use eframe::egui::{self, Event, ViewportCommand};
@@ -18,7 +19,7 @@ use crate::{App, DiskView, Tab};
 const SETTLE: Duration = Duration::from_millis(900);
 
 /// What the screenshot tour does, in order.
-const STEPS: &[&str] = &["nvme", "sata", "hdd", "usb", "settings"];
+const STEPS: &[&str] = &["nvme", "sata", "hdd", "usb", "history", "settings"];
 
 pub struct Driver {
     pub dir: Option<PathBuf>,
@@ -161,6 +162,49 @@ pub fn disks(t: Thresholds) -> Vec<DiskView> {
     ]
 }
 
+/// Invented 45-day histories for the three disks with SMART data (deterministic; used by the History tab in `--demo`).
+pub fn history() -> Vec<(DiskMeta, Vec<Sample>)> {
+    let end: u64 = 1_760_000_000;
+    let make = |number: u32, gb_per_day: f64, base_gb: f64, temp: f64, used: Option<(u8, u8)>, tbw: Option<f64>| {
+        let d = disks(Thresholds::default())
+            .into_iter()
+            .find(|v| v.info.number == number)
+            .expect("demo disk")
+            .info;
+        let steps = 180u64; // every 6 hours
+        let samples = (0..steps)
+            .map(|i| {
+                let t = end - (steps - 1 - i) * 6 * 3600;
+                let days = i as f64 / 4.0;
+                let wave = (days * 2.3).sin() * 4.0 + (days * 0.35).sin() * 2.0;
+                Sample {
+                    t,
+                    temp_c: Some((temp + wave).round() as i32),
+                    pct_used: used.map(|(a, b)| if i < 120 { a } else { b }),
+                    written: Some(((base_gb + gb_per_day * days) * 1e9) as u64),
+                    ..Sample::default()
+                }
+            })
+            .collect();
+        let meta = DiskMeta {
+            key: d.key(),
+            model: d.model.clone(),
+            serial_masked: d.serial_masked(),
+            bus: d.bus.label().to_owned(),
+            size_bytes: d.size_bytes,
+            tbw_rated_tb: tbw,
+            first_seen: end - 45 * 86_400,
+            last_seen: end,
+        };
+        (meta, samples)
+    };
+    vec![
+        make(0, 21.0, 48_300.0, 41.0, Some((11, 12)), Some(600.0)),
+        make(1, 7.5, 9_400.0, 36.0, None, None),
+        make(2, 2.0, 61_000.0, 33.0, None, None),
+    ]
+}
+
 impl App {
     fn demo_prepare(&mut self, ctx: &egui::Context, step: &str) {
         self.tab = Tab::Disks;
@@ -170,6 +214,11 @@ impl App {
             "sata" => select(self, 1),
             "hdd" => select(self, 2),
             "usb" => select(self, 3),
+            "history" => {
+                self.tab = Tab::History;
+                self.hist.key = None;
+                self.hist.loaded = None;
+            }
             "settings" => self.tab = Tab::Settings,
             _ => {}
         }

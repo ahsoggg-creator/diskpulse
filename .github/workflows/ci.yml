@@ -73,3 +73,31 @@ jobs:
           Start-Sleep -Seconds 8
           if (Test-Path $key) { throw 'uninstall left the registry entry' }
           if (Test-Path $exe) { throw 'uninstall left the exe' }
+      - name: Background service install, run, remove
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = (Resolve-Path target\release\DiskPulse.exe).Path
+          $p = Start-Process $exe -ArgumentList '--install-service' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "install-service failed: $($p.ExitCode)" }
+          Start-Sleep -Seconds 10
+          $svc = Get-Service DiskPulseCollector
+          if ($svc.Status -ne 'Running') { throw "service is $($svc.Status)" }
+          if (-not (Test-Path 'C:\Program Files\DiskPulse\DiskPulse.exe')) { throw 'the service exe is not in Program Files' }
+          $log = Get-Content 'C:\ProgramData\DiskPulse\service.log' -Raw
+          if ($log -notmatch 'collected') { throw "the service did not collect: $log" }
+          $p = Start-Process $exe -ArgumentList '--uninstall-service' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "uninstall-service failed: $($p.ExitCode)" }
+          Start-Sleep -Seconds 3
+          if (Get-Service DiskPulseCollector -ErrorAction SilentlyContinue) { throw 'the service is still registered' }
+          if (Test-Path 'C:\Program Files\DiskPulse') { throw 'Program Files copy was not removed' }
+      - name: Tray process starts and collects
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $p = Start-Process (Resolve-Path target\release\DiskPulse.exe).Path -ArgumentList '--tray' -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { throw "the tray process exited with $($p.ExitCode)" }
+          $log = Get-Content (Join-Path $env:APPDATA 'DiskPulse\logs\diskpulse.log') -Raw
+          Stop-Process $p -Force
+          if ($log -notmatch 'tray: collected') { throw "the tray did not collect: $log" }
