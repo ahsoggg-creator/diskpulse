@@ -55,8 +55,8 @@ pub fn render_icon_bgra(base_rgba64: &[u8], level: Option<Level>, size: usize) -
                 }
             }
             let o = (y * size + x) * 4;
-            if acc[3] > 0 {
-                out[o] = (acc[2] / acc[3]) as u8;
+            if let Some(blue) = acc[2].checked_div(acc[3]) {
+                out[o] = blue as u8;
                 out[o + 1] = (acc[1] / acc[3]) as u8;
                 out[o + 2] = (acc[0] / acc[3]) as u8;
                 out[o + 3] = (acc[3] / n) as u8;
@@ -289,7 +289,7 @@ mod win {
 
     fn make_icon(level: Option<Level>) -> HICON {
         let bgra = render_icon_bgra(include_bytes!("../assets/tray64.rgba"), level, ICON_PX);
-        let mask = vec![0u8; ICON_PX * ICON_PX / 8];
+        let mask = [0u8; ICON_PX * ICON_PX / 8];
         // SAFETY: `bgra` / `mask` are valid for the stated bitmap sizes; the bitmaps are deleted after the icon copies them.
         unsafe {
             let color = CreateBitmap(ICON_PX as i32, ICON_PX as i32, 1, 32, bgra.as_ptr().cast());

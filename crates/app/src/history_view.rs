@@ -12,6 +12,9 @@ use egui_plot::{Line, Plot, PlotPoints};
 
 use crate::{App, demo, settings, theme};
 
+/// Picks the plotted value out of a sample.
+type Extract = Box<dyn Fn(&Sample) -> Option<f64>>;
+
 const RELOAD_EVERY: Duration = Duration::from_secs(30);
 
 /// Cached view of the store.
@@ -157,7 +160,7 @@ impl App {
             ui.add_space(8.0);
             let samples = self.hist.samples.clone();
             let gb = |s: &Sample| s.written.map(|w| w as f64 / 1e9);
-            let charts: [(&str, Color32, Box<dyn Fn(&Sample) -> Option<f64>>); 3] = [
+            let charts: [(&str, Color32, Extract); 3] = [
                 ("hist.chart.temp", theme::WARN, Box::new(|s| s.temp_c.map(f64::from))),
                 (
                     "hist.chart.used",
