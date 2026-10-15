@@ -859,7 +859,7 @@ dependencies = [
 
 [[package]]
 name = "diskpulse-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "diskpulse-core",
  "eframe",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "diskpulse-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "diskpulse-core",
@@ -888,7 +888,7 @@ dependencies = [
 
 [[package]]
 name = "diskpulse-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "serde",
  "serde_json",

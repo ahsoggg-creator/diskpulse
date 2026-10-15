@@ -10,7 +10,7 @@ name = "DiskPulse"
 path = "src/main.rs"
 
 [dependencies]
-diskpulse-core = { version = "0.2.0", path = "../core" }
+diskpulse-core = { version = "0.3.0", path = "../core" }
 eframe = "0.36.2"
 egui_plot = "0.37.0"
 png = "0.18.1"
