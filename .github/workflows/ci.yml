@@ -101,7 +101,7 @@ jobs:
           $log = Get-Content (Join-Path $env:APPDATA 'DiskPulse\logs\diskpulse.log') -Raw
           Stop-Process $p -Force
           if ($log -notmatch 'tray: collected') { throw "the tray did not collect: $log" }
-      - name: Read-only surface scan with file attribution (first 200 MB of the C: volume)
+      - name: Read-only surface scan with file attribution (first 200 MB of the C volume)
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
